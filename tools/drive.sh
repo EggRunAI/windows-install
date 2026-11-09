@@ -32,10 +32,13 @@ set -u
 name="$1"; shift
 S=${EGG_HOME:-$HOME/.egg}/eggs/$name.egg/run/egg.sock
 T=${TMPDIR:-/tmp}
-send() { printf '%s\n' "$1" | nc -U "$S" 2>/dev/null; }
+# netcat-openbsd (Ubuntu's nc) keeps the connection open after the reply and hangs the caller;
+# -q 1 closes it a second after EOF on stdin. nmap's ncat (Fedora) closes by itself and has no -q.
+NCQ=""; nc -h 2>&1 | grep -q -- '-q' && NCQ="-q 1"
+send() { printf '%s\n' "$1" | timeout 10 nc -U $NCQ "$S" 2>/dev/null; }
 case "${1:-}" in
   click) x=$(( $2 * 32767 / 800 )); y=$(( $3 * 32767 / 600 )); send "MOUSE_MOVE $x $y" >/dev/null; sleep 0.25; send "MOUSE_BTN left 1" >/dev/null; sleep 0.08; send "MOUSE_BTN left 0" >/dev/null;;
-  key) send "KEY $2 1" >/dev/null; sleep 0.05; send "KEY $2 0" >/dev/null;;
+  key) send "KEY $2 1" >/dev/null; sleep 0.05; send "KEY $2 0" >/dev/null;;   # on the x86 runner a bare KEY 28 did not register; use `combo enter`
   combo) send "KEY_COMBO $2 $3" >/dev/null;;
   type) send "TYPE $2" >/dev/null;;
   # Win+R → type → Enter. Esc first closes whatever overlay is up; Shift and Win are
@@ -46,7 +49,7 @@ case "${1:-}" in
   runbox) send "KEY 1 1" >/dev/null; sleep 0.05; send "KEY 1 0" >/dev/null; sleep 0.5
     send "KEY 42 0" >/dev/null; send "KEY 54 0" >/dev/null; send "KEY 125 0" >/dev/null; sleep 0.3
     send "KEY_COMBO meta r" >/dev/null; sleep 2; send "TYPE $2" >/dev/null; sleep $(( ${#2} / 60 + 1 ))
-    send "KEY 28 1" >/dev/null; sleep 0.05; send "KEY 28 0" >/dev/null; sleep 0.2; send "KEY 42 0" >/dev/null;;
+    send "KEY_COMBO enter" >/dev/null; sleep 0.2; send "KEY 42 0" >/dev/null;;
   raw) send "$2";;
   # The previous capture is removed first: a dead egg (stale socket file, runner gone) must fail
   # loudly instead of handing back the last frame it ever produced.
