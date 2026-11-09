@@ -41,10 +41,10 @@ PORT=${EGG_DROPBOX_PORT:-8766}
 ISO=$TOP/iso/windows.iso
 VWISO=${VIRTIO_WIN_ISO:-$TOP/out/virtio-win.iso}
 VWURL=https://fedorapeople.org/groups/virt/virtio-win/direct-downloads/stable-virtio/virtio-win.iso
-# Defaults: 8 vCPUs when the host has 16 or more, else 4; 8 GB; a 64 GB disk (the floor: Windows 11
-# plus one real application does not fit in less, and Setup itself wants 52 GB free).
-hostcpus=$(nproc 2>/dev/null || echo 4)
-name=w11; keep=0; media_only=0; ram=8G; cpus=$([ "$hostcpus" -ge 16 ] && echo 8 || echo 4); disk=64G; gpu=virtio-gpu; gpu_address=; stream=ws; logo=; title="Windows 11"
+# The machine a Windows egg gets, every time: 8 vCPUs, 16 GB, a 64 GB disk. These are floors as
+# well as defaults (--cpus/--ram/--disk may only raise them): Windows 11 plus one real
+# application is slow below them, and Setup itself wants 52 GB free.
+name=w11; keep=0; media_only=0; ram=16G; cpus=8; disk=64G; gpu=virtio-gpu; gpu_address=; stream=ws; logo=; title="Windows 11"
 while [ $# -gt 0 ]; do case "$1" in
   --iso) ISO=$2; shift 2;; --virtio-win) VWISO=$2; shift 2;; --ram) ram=$2; shift 2;; --cpus) cpus=$2; shift 2;;
   --disk) disk=$2; shift 2;; --gpu) gpu=$2; shift 2;; --gpu-address) gpu_address=$2; shift 2;; --stream) stream=$2; shift 2;;
@@ -68,8 +68,11 @@ case "$gpu" in virtio-gpu) ;; nvidia) [ -n "$gpu_address" ] || die "--gpu nvidia
   *) die "--gpu must be virtio-gpu or nvidia (x86 hosts attach nothing else)";; esac
 case "$stream" in ws|webrtc) ;; *) die "--stream must be ws or webrtc";; esac
 disk_gb=$(echo "$disk" | sed -E 's/[Gg][Bb]?$//'); echo "$disk_gb" | grep -Eq '^[0-9]+$' || die "--disk takes gigabytes, e.g. 64G"
-[ "$disk_gb" -ge 64 ] || die "--disk $disk is below the 64G floor for a Windows 11 egg"
-echo "$cpus" | grep -Eq '^[0-9]+$' && [ "$cpus" -ge 2 ] || die "--cpus must be a number, 2 or more (Windows Setup on one vCPU takes hours)"
+[ "$disk_gb" -ge 64 ] || die "--disk $disk is below the 64G floor for a Windows egg"
+ram_gb=$(echo "$ram" | sed -E 's/[Gg][Bb]?$//'); echo "$ram_gb" | grep -Eq '^[0-9]+$' || die "--ram takes gigabytes, e.g. 16G"
+[ "$ram_gb" -ge 16 ] || die "--ram $ram is below the 16G floor for a Windows egg"
+echo "$cpus" | grep -Eq '^[0-9]+$' && [ "$cpus" -ge 8 ] || die "--cpus $cpus is below the 8 vCPU floor for a Windows egg"
+[ "$cpus" -le "$(nproc)" ] || die "--cpus $cpus exceeds this host's $(nproc) cores"
 HOSTIP=$(hostname -I 2>/dev/null | awk '{print $1}'); [ -n "$HOSTIP" ] || die "no host address (the guest uploads its proofs here)"
 if [ $media_only = 0 ]; then
   ss -ltn 2>/dev/null | grep -q ":$PORT " && die "port $PORT is taken; stop it or set EGG_DROPBOX_PORT"

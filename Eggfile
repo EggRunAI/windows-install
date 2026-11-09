@@ -4,8 +4,8 @@
 # so there is no ISO line here.
 FROM windows:11
 TITLE "Windows 11 (e2e)"
-CPUS 4
-RAM 8G
+CPUS 8
+RAM 16G
 DISK 64G
 GPU virgl vram=2G
 DISPLAY width=1920 height=1080 scale=2

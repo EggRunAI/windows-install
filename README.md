@@ -47,9 +47,9 @@ files and screenshots land in `results/`. `--keep` leaves the egg; without it th
 removes the egg after proving it (that is the test mode). On failure the egg is always kept
 and `results/<name>-fail.png` shows the last frame.
 
-Options: `--iso <path>` (another ISO), `--ram 8G --cpus 8 --disk 64G` (x86 lane defaults: 8 vCPUs
-on a host with 16 or more cores, 4 otherwise; 64 GB is the disk floor; the Mac lane takes
-them from `Eggfile`), `--media-only` (just the repacked ISO, to inspect),
+Options: `--iso <path>` (another ISO), `--ram 16G --cpus 8 --disk 64G` (x86 lane; these are the
+floors and the defaults, a Windows egg never gets less; the Mac lane takes the same from
+`Eggfile`), `--media-only` (just the repacked ISO, to inspect),
 `--gpu-driver <zip>` (Mac lane: the VirtIO GPU 3D driver package, for 3D on the ARM egg).
 
 GPU and streaming (x86 lane): the egg is written with `--gpu virtio-gpu` (default, the 2D
