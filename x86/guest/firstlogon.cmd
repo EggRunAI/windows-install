@@ -27,7 +27,9 @@ set SU=%APPDATA%\Microsoft\Windows\Start Menu\Programs\Startup
  echo set P=%%TEMP%%\egg-proof2.txt
  echo echo stage=coldboot^> "%%P%%"
  echo reg query "HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon" /v AutoAdminLogon ^>^> "%%P%%"
- echo wmic path win32_videocontroller get name,currenthorizontalresolution,currentverticalresolution ^>^> "%%P%%"
+ echo powershell -NoProfile -c "Get-CimInstance Win32_VideoController ^| select Name,CurrentHorizontalResolution,CurrentVerticalResolution ^| fl" ^>^> "%%P%%"
+ echo powershell -NoProfile -c "Get-CimInstance Win32_Processor ^| select NumberOfCores,NumberOfLogicalProcessors,SocketDesignation ^| fl" ^>^> "%%P%%"
+ echo echo processors=%%NUMBER_OF_PROCESSORS%% ^>^> "%%P%%"
  echo curl.exe -s -T "%%P%%" %DB%/w11-proof2.txt
  echo shutdown /s /t 20 /f
  echo del "%%~f0") > "%SU%\egg-postboot.cmd"
