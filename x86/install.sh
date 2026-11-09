@@ -61,7 +61,7 @@ fail() { say "FAILED after $(el): $*"; [ -S "$S" ] && "$D" "$name" shot "$R/$nam
 [ "$(uname -s)" = Linux ] && [ "$(uname -m)" = x86_64 ] || die "this is the Linux x86_64 lane; on a Mac run ./install.sh"
 [ "$(id -u)" = 0 ] || die "run as root (the runner needs /dev/kvm and \$EGG_HOME=$EH)"
 [ -n "$EGG" ] && [ -x "$EGG" ] || die "no egg binary (install the EggRun host package, or EGG=/path/to/egg)"
-for t in xorriso wimlib-imagex bsdtar python3 curl; do command -v $t >/dev/null || die "$t missing (apt install xorriso wimtools libarchive-tools python3 curl)"; done
+for t in xorriso wimlib-imagex python3 curl; do command -v $t >/dev/null || die "$t missing (apt install xorriso wimtools python3 curl)"; done
 [ -c /dev/kvm ] || die "/dev/kvm missing: this host has no KVM (a .metal instance on AWS)"
 [ -f "$ISO" ] || die "install media not found: $ISO (copy your Windows 11 x64 ISO to iso/windows.iso, or --iso <path>)"
 case "$gpu" in virtio-gpu) ;; nvidia) [ -n "$gpu_address" ] || die "--gpu nvidia needs --gpu-address <pci address> (lspci -D | grep -i nvidia; egg gpu ls)";;
@@ -82,13 +82,27 @@ if [ ! -f "$VWISO" ]; then
   curl -fL -o "$VWISO.part" "$VWURL" || die "virtio-win download failed (or pass --virtio-win <iso>)"
   mv "$VWISO.part" "$VWISO"
 fi
-STAGE=$OUT/stage; DRV=$OUT/drv; VW=$OUT/vw
-rm -rf "$STAGE" "$DRV" "$VW"; mkdir -p "$STAGE" "$DRV" "$VW"
-trap 'rm -rf "$STAGE" "$DRV" "$VW"' EXIT
-say "media: extracting $(basename "$ISO") and the virtio-win drivers"
-bsdtar -xf "$ISO" -C "$STAGE" || die "could not extract $ISO (bsdtar)"
-bsdtar -xf "$VWISO" -C "$VW" || die "could not extract $VWISO"
+STAGE=$OUT/stage; DRV=$OUT/drv; VW=$OUT/vw; M1=$OUT/mnt-win; M2=$OUT/mnt-vw
+umount_all() { umount "$M1" 2>/dev/null; umount "$M2" 2>/dev/null; }
+rm -rf "$STAGE" "$DRV" "$VW"; mkdir -p "$STAGE" "$DRV" "$VW" "$M1" "$M2"
+trap 'umount_all; rm -rf "$STAGE" "$DRV" "$VW" "$M1" "$M2"' EXIT
+# The Windows ISO is UDF (its install.wim is bigger than ISO9660 allows); the kernel reads it,
+# user-space extractors do not. Mount, copy, unmount.
+say "media: copying $(basename "$ISO") and the virtio-win drivers"
+mount -o loop,ro "$ISO" "$M1" || die "could not mount $ISO"
+mount -o loop,ro "$VWISO" "$M2" || die "could not mount $VWISO"
+cp -a "$M1"/. "$STAGE"/ || die "copying the media tree failed (disk full in $OUT?)"
+cp -a "$M2"/. "$VW"/ || die "copying virtio-win failed"
+umount_all
 chmod -R u+w "$STAGE" "$VW"
+[ -f "$STAGE/sources/boot.wim" ] || die "no sources/boot.wim in the media (not a Windows install ISO?)"
+# xorriso writes ISO9660, which caps a file at 4 GB; Setup reads a split image (install.swm,
+# install2.swm, …) exactly like install.wim.
+if [ -f "$STAGE/sources/install.wim" ] && [ "$(stat -c %s "$STAGE/sources/install.wim")" -gt 4000000000 ]; then
+  say "media: splitting install.wim ($(du -h "$STAGE/sources/install.wim" | cut -f1)) into .swm parts"
+  wimlib-imagex split "$STAGE/sources/install.wim" "$STAGE/sources/install.swm" 3800 >/dev/null || die "wimlib split failed"
+  rm -f "$STAGE/sources/install.wim"
+fi
 for d in viostor NetKVM vioinput viogpudo; do
   l=$(echo $d | tr A-Z a-z); src=$(find "$VW" -maxdepth 1 -iname "$d" | head -1)
   [ -d "$src/w11/amd64" ] || die "virtio-win has no $d/w11/amd64 (layout changed?)"
@@ -106,12 +120,12 @@ add '$HERE/winpeshl.ini' /Windows/System32/winpeshl.ini
 add '$HERE/autounattend.xml' /autounattend.xml
 add '$DRV' /drivers
 CMDS
-wimlib-imagex dir "$STAGE/sources/boot.wim" 2 | grep -q '^/drivers/viostor/viostor.sys' || die "viostor did not land in boot.wim"
+wimlib-imagex dir "$STAGE/sources/boot.wim" 2 | grep -qi '^/drivers/viostor/viostor.sys' || die "viostor did not land in boot.wim"
 MEDIA=$OUT/windows-x64-egg.iso; rm -f "$MEDIA"
 xorriso -as mkisofs -iso-level 4 -R -J -joliet-long -D -V WIN11EGG \
   -eltorito-alt-boot -e efi/microsoft/boot/efisys_noprompt.bin -no-emul-boot \
   -o "$MEDIA" "$STAGE" >/dev/null 2>&1 || die "xorriso failed"
-rm -rf "$STAGE" "$DRV" "$VW"
+rm -rf "$STAGE" "$DRV" "$VW" "$M1" "$M2"
 say "media ready ($(du -h "$MEDIA" | cut -f1), $(el))"
 [ $media_only = 1 ] && exit 0
 

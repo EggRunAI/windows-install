@@ -10,7 +10,7 @@ Two lanes, one per host kind:
 | host | script | guest arch | media tooling |
 |---|---|---|---|
 | Mac, Apple Silicon | `./install.sh` | Windows 11 **ARM64** | hdiutil (built in) |
-| Linux x86_64 with KVM (a Carton Host, a `.metal` EC2, a workstation) | `x86/install.sh` | Windows 11 **x64** | xorriso, wimlib, bsdtar |
+| Linux x86_64 with KVM (a Carton Host, a `.metal` EC2, a workstation) | `x86/install.sh` | Windows 11 **x64** | xorriso, wimlib |
 
 ## 1. Put the ISO in place
 
@@ -36,7 +36,7 @@ Mac:
 Linux x86_64, as root, with the EggRun host package installed (`egg` on PATH):
 
 ```bash
-sudo apt install xorriso wimtools libarchive-tools python3 curl
+sudo apt install xorriso wimtools python3 curl
 sudo x86/install.sh w11 --keep
 ```
 
@@ -125,6 +125,8 @@ it and start it again.
 - On the Mac the firmware's "Press any key to boot from CD" has to be answered once;
   install.sh taps Enter for the first 40 s of the first boot and never again. The x86 lane
   boots `efisys_noprompt.bin` and needs no key.
+- The Windows ISO is UDF with an install.wim beyond the 4 GB ISO9660 limit: the lane loop-mounts
+  it to copy, and splits the image into `.swm` parts before xorriso writes the new ISO.
 - Windows Setup on x86 cannot see a VirtIO disk, nor its own CD when that is a VirtIO
   device, until viostor is loaded; the x86 lane puts the virtio-win drivers into
   `boot.wim` and `winpeshl.ini` loads them before Setup. The system disk is NVMe (inbox
