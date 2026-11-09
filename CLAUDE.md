@@ -30,7 +30,11 @@ document; this file is how to operate it and what not to do.
    (`tools/drive.sh <name> type "shutdown /s /t 0"` into an elevated prompt, or the Start
    menu) and wait for the runner to exit. On x86 the socket's SHUTDOWN and `egg stop` are
    hard cuts; a cut Windows comes back in Automatic Repair.
-4. The x86 lane with `--keep` already made the bundle: cold snapshot `snapshots/<name>-build.egg`
+4. A GPU: README section 6 (host `egg gpu bind`, `[display] gpu = "nvidia"` + `gpu_address` in
+   the egg's egg.toml, NVIDIA driver from provision.cmd or by hand). Intel hosts need
+   `intel_iommu=on iommu=pt` and a reboot first; a second NVMe disk hangs the x86 guest, so a
+   driver disk is a virtio `[[storage]]`.
+5. The x86 lane with `--keep` already made the bundle: cold snapshot `snapshots/<name>-build.egg`
    (`egg snapshot --egg <name> --snapshot <name>-build --cold`, egg stopped), metadata.toml,
    `egg card <name> logo <png>` (+ `add <screenshot>`), which signs. The directory name
    `<name>-build.egg` is what the signature covers; keep it. Then README section 5 for the

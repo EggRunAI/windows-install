@@ -107,6 +107,67 @@ machine. A pulled Windows egg cold-boots on first start (30-60 s to the desktop)
 first boot of a large egg says "No bootable device", the disk restore was still running: stop
 it and start it again.
 
+## 6. Give the egg an NVIDIA GPU (whole-card passthrough, x86 lane)
+
+A Windows egg built with the default `--gpu virtio-gpu` can be given a real NVIDIA card later:
+the card is handed to the egg whole, Windows sees it as its own PCI device and runs the stock
+NVIDIA driver (proven on an RTX 5090: `nvidia-smi` inside the egg, WDDM, CUDA). Three steps.
+
+**1. The host hands the card to vfio-pci.** Once per host:
+
+```bash
+# Intel hosts (every EC2 .metal, most Xeon boxes): the IOMMU is off until the kernel is told.
+# AMD hosts have it on. Skip this on AMD; on Intel, append to GRUB_CMDLINE_LINUX_DEFAULT:
+#   intel_iommu=on iommu=pt        → sudo update-grub && sudo reboot
+# The card must not be the host's console and must not be held by a running nvidia process.
+sudo egg gpu ls                      # every NVIDIA card: address, VRAM, IOMMU group, driver, state
+sudo egg gpu bind 0000:c1:00.0       # every function of the card's IOMMU group → vfio-pci
+sudo egg gpu ls                      # ... DRIVER vfio-pci, STATE free
+```
+
+`egg gpu bind` refuses the console card, a busy card and a dirty IOMMU group (a group with
+devices that are not functions of this card); `egg gpu unbind <address>` gives the card back to
+the host driver. The binding does not survive a reboot. To make it permanent, as the Carton
+host bootstrap does on a g4dn.metal (`host-bootstrap.sh --vfio-t4`): `options vfio-pci ids=10de:xxxx`
+in `/etc/modprobe.d/vfio-gpu.conf`, `vfio vfio_iommu_type1 vfio_pci` in
+`/etc/modules-load.d/vfio.conf`, `blacklist nouveau`, reboot.
+
+**2. The egg asks for it.** With the egg stopped, edit `$EGG_HOME/eggs/<name>.egg/egg.toml`
+(`/root/.egg/eggs/<name>.egg/egg.toml` on Linux) and change the `[display]` table:
+
+```toml
+[display]
+width = 1280
+height = 800
+gpu = "nvidia"                  # was "virtio-gpu"
+gpu_address = "0000:c1:00.0"    # the address from `egg gpu ls`
+ramfb = true                    # stays: the boot manager and the logon screen need it
+stream = "0.0.0.0:3456"
+stream_mode = "webrtc"          # optional: H.264 through the host's encoder instead of ws/MJPEG
+```
+
+`egg run <name>` now attaches the card; `egg gpu ls` shows `passthrough → egg <name>`. One card
+runs one egg at a time; a clone (`egg clone`) copies the table, so give each clone its own
+`gpu_address` or run them one after another. A GPU egg is tied to a host that has that card
+bound: to move it, change `gpu_address` on the new host.
+
+**3. Windows installs the driver.** The first boot with the card shows it in Device Manager as a
+3D controller without a driver. Install NVIDIA's standard Windows driver (GeForce/RTX for a
+workstation card, the Data Center driver for a T4) one of three ways:
+
+- during the build: `x86/guest/provision.cmd` with the installer's silent switches,
+  `nvidia-<version>.exe -s -noreboot -clean` (download it with `curl.exe -L -o ...` first); the
+  golden is then built with `--gpu nvidia --gpu-address <addr>` and comes out driver-ready;
+- by hand, inside the egg: download it in Edge and run it;
+- from a FAT disk image attached as a second `[[storage]]` with `read_only = true` (a virtio
+  disk; **never** a second `bus = "nvme"` disk, which hangs the x86 guest today).
+
+Then shut Windows down from inside and start it again. `nvidia-smi` in a prompt lists the
+card. Two things we learned: the egg's picture still comes from the virtio-gpu display, and
+right after logon it may stream at 13 fps until the virtio display adapter is disabled and
+re-enabled once in Device Manager (then 60 fps); and never turn UAC off in the offline registry
+(EnableLUA=0), every driver-store import fails afterwards.
+
 ## What is in here
 
 | path | role |
@@ -141,9 +202,9 @@ it and start it again.
 - The x86 lane drives `egg run`, not `egg build`: the EggRun x86 runner has no Windows
   build lane yet, so the egg bundle is written by the script. A RUN-style step for Windows
   is `provision.cmd`.
-- A virtio-gpu golden has no GPU acceleration (2D scanout). An `--gpu nvidia` golden is tied to
-  a host that has that card bound to vfio-pci; to move it, change `gpu_address` in its egg.toml
-  on the new host.
+- A virtio-gpu golden has no GPU acceleration (2D scanout); section 6 adds an NVIDIA card
+  after the fact. A GPU egg is tied to a host that has that card bound to vfio-pci; to move it,
+  change `gpu_address` in its egg.toml on the new host.
 - Clones share the golden's Windows SID and activation state; `egg clone` gives each its own
   machine UUID. Activation for a fleet is your Microsoft agreement.
 

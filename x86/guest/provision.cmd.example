@@ -6,3 +6,10 @@ rem (TLS alert from its bundled Python); the full Admin Install package works. I
 rem switches are not verified here: run it once by hand to learn them, then fill them in.
 curl.exe -L -o "%TEMP%\FusionAdminInstall.exe" "https://dl.appstreaming.autodesk.com/production/installers/Fusion%%20Admin%%20Install.exe"
 "%TEMP%\FusionAdminInstall.exe" --quiet
+
+rem NVIDIA driver, for a golden built with --gpu nvidia (or given a card later, README section 6).
+rem Pick the package for the card from nvidia.com (GeForce/RTX for a workstation card, the Data
+rem Center driver for a T4); -s is silent, -noreboot leaves the restart to the lane's own shutdown.
+rem curl.exe -L -o "%TEMP%\nvidia.exe" "https://us.download.nvidia.com/.../<version>-desktop-win10-win11-64bit-international-dch-whql.exe"
+rem "%TEMP%\nvidia.exe" -s -noreboot -clean
+rem (echo nvidia=%ERRORLEVEL%>> "%P%")
