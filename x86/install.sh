@@ -271,8 +271,20 @@ if [ $keep = 0 ]; then "$EGG" rm "$name" 2>&1 | tail -1; exit 0; fi
 # a cold snapshot in snapshots/<name>-build.egg (the one directory the signature covers),
 # metadata.toml at the bundle root, and `egg card`, which re-signs with this machine's key.
 say "bundle: cold snapshot → metadata → card (signs)"
+# The runner leaves run/run.json behind when the guest powers itself off, and `egg snapshot
+# --cold` reads it as "running"; with the runner process gone it is stale, so it goes.
+RJ=$BUNDLE/run/run.json
+if [ -f "$RJ" ]; then rp=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1])).get("pid",""))' "$RJ" 2>/dev/null)
+  if [ -z "$rp" ] || ! kill -0 "$rp" 2>/dev/null; then rm -f "$RJ"; fi; fi
 "$EGG" snapshot --egg "$name" --snapshot "$name-build" --cold >"$R/$name-bundle.log" 2>&1 || fail "cold snapshot failed (see $R/$name-bundle.log)"
-[ -d "$BUNDLE/snapshots/$name-build.egg" ] || fail "no snapshots/$name-build.egg after the cold snapshot (see $R/$name-bundle.log)"
+# The x86 runner writes snapshots/<name>-<epoch>.egg with the label in label.txt; the hub bundle
+# and the signature want the directory called <name>-build.egg.
+if [ ! -d "$BUNDLE/snapshots/$name-build.egg" ]; then
+  sd=$(grep -lx "$name-build" "$BUNDLE"/snapshots/*/label.txt 2>/dev/null | head -1)
+  [ -n "$sd" ] || fail "no snapshot labelled $name-build after the cold snapshot (see $R/$name-bundle.log)"
+  mv "$(dirname "$sd")" "$BUNDLE/snapshots/$name-build.egg"
+fi
+[ -f "$BUNDLE/snapshots/$name-build.egg/disk-0.pack" ] || fail "snapshots/$name-build.egg has no disk-0.pack"
 cat > "$BUNDLE/metadata.toml" <<META
 # Written by windows-install/x86/install.sh: the card the hub shows for this egg.
 description = "$title, installed unattended by windows-install. Local administrator egg, autologon, VirtIO drivers, $gpu display."
