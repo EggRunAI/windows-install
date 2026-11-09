@@ -116,6 +116,14 @@ IDX=$(wimlib-imagex info "$STAGE/sources/install.wim" | awk '/^Index:/{i=$2} /^N
 say "media: Windows 11 Pro is image index $IDX; splitting install.wim ($(du -h "$STAGE/sources/install.wim" | cut -f1)) for FAT32"
 wimlib-imagex split "$STAGE/sources/install.wim" "$STAGE/sources/install.swm" 3800 >/dev/null || die "wimlib split failed"
 rm -f "$STAGE/sources/install.wim"
+# viostor is what WinPE and the installed system need for the VirtIO media disk; netkvm, vioinput
+# and viogpudo so the first boot has network, a pointer and the display without the guest tools.
+for d in viostor NetKVM vioinput viogpudo; do
+  l=$(echo $d | tr A-Z a-z); src=$(find "$VW" -maxdepth 1 -iname "$d" | head -1)
+  [ -d "$src/w11/amd64" ] || die "virtio-win has no $d/w11/amd64 (layout changed?)"
+  mkdir -p "$DRV/$l" && cp "$src"/w11/amd64/* "$DRV/$l/"
+done
+tools=$(find "$VW" -maxdepth 1 -iname 'virtio-win-guest-tools.exe' | head -1); [ -f "$tools" ] || die "virtio-win-guest-tools.exe not in $VWISO"
 mkdir -p "$STAGE/egg"
 cp "$tools" "$STAGE/egg/virtio-win-guest-tools.exe"
 cp "$HERE/autounattend.xml" "$STAGE/autounattend.xml"
