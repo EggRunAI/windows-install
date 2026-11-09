@@ -46,10 +46,10 @@ VWURL=https://fedorapeople.org/groups/virt/virtio-win/direct-downloads/stable-vi
 # The machine a Windows egg gets, every time: 8 vCPUs, 16 GB, a 64 GB disk. These are floors as
 # well as defaults (--cpus/--ram/--disk may only raise them): Windows 11 plus one real
 # application is slow below them, and Setup itself wants 52 GB free.
-name=w11; keep=0; media_only=0; ram=16G; cpus=8; disk=64G; gpu=virtio-gpu; gpu_address=; stream=ws; logo=; title="Windows 11"
+name=w11; keep=0; media_only=0; ram=16G; cpus=8; disk=64G; gpu=virtio-gpu; gpu_address=; stream=ws; stream_port=3456; logo=; title="Windows 11"
 while [ $# -gt 0 ]; do case "$1" in
   --iso) ISO=$2; shift 2;; --virtio-win) VWISO=$2; shift 2;; --ram) ram=$2; shift 2;; --cpus) cpus=$2; shift 2;;
-  --disk) disk=$2; shift 2;; --gpu) gpu=$2; shift 2;; --gpu-address) gpu_address=$2; shift 2;; --stream) stream=$2; shift 2;;
+  --disk) disk=$2; shift 2;; --gpu) gpu=$2; shift 2;; --gpu-address) gpu_address=$2; shift 2;; --stream) stream=$2; shift 2;; --stream-port) stream_port=$2; shift 2;;
   --keep) keep=1; shift;; --media-only) media_only=1; shift;; --logo) logo=$2; shift 2;; --title) title=$2; shift 2;;
   -h|--help) sed -n 2,26p "$0"; exit 2;; -*) echo "install.sh: unknown option $1" >&2; exit 2;; *) name=$1; shift;; esac; done
 say() { printf '[w11-x86 %s] %s\n' "$(date +%H:%M:%S)" "$*"; }
@@ -69,6 +69,8 @@ for t in wimlib-imagex mcopy mkfs.vfat sfdisk python3 curl; do command -v $t >/d
 case "$gpu" in virtio-gpu) ;; nvidia) [ -n "$gpu_address" ] || die "--gpu nvidia needs --gpu-address <pci address> (lspci -D | grep -i nvidia; egg gpu ls)";;
   *) die "--gpu must be virtio-gpu or nvidia (x86 hosts attach nothing else)";; esac
 case "$stream" in ws|webrtc) ;; *) die "--stream must be ws or webrtc";; esac
+echo "$stream_port" | grep -Eq '^[0-9]+$' || die "--stream-port takes a port number"
+[ $media_only = 1 ] || ! ss -ltn 2>/dev/null | grep -q ":$stream_port " || die "port $stream_port is taken (another egg streams there); pick --stream-port <n>"
 disk_gb=$(echo "$disk" | sed -E 's/[Gg][Bb]?$//'); echo "$disk_gb" | grep -Eq '^[0-9]+$' || die "--disk takes gigabytes, e.g. 64G"
 [ "$disk_gb" -ge 64 ] || die "--disk $disk is below the 64G floor for a Windows egg"
 ram_gb=$(echo "$ram" | sed -E 's/[Gg][Bb]?$//'); echo "$ram_gb" | grep -Eq '^[0-9]+$' || die "--ram takes gigabytes, e.g. 16G"
@@ -185,7 +187,7 @@ height = 800
 gpu = "$gpu"
 $([ "$gpu" = nvidia ] && echo "gpu_address = \"$gpu_address\"")
 ramfb = true
-stream = "0.0.0.0:3456"
+stream = "0.0.0.0:$stream_port"
 stream_mode = "$stream"
 TOML
 rm -f "$TOP/guest/in/w11-proof1.txt" "$TOP/guest/in/w11-proof2.txt"

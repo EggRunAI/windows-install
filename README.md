@@ -56,8 +56,8 @@ GPU and streaming (x86 lane): the egg is written with `--gpu virtio-gpu` (defaul
 device every host has) or `--gpu nvidia --gpu-address 0000:c1:00.0` (whole-card passthrough;
 the card must be bound to vfio-pci on that host, `egg gpu ls` lists them, and the NVIDIA
 driver is installed from `provision.cmd`). Either way the egg streams its display
-(`--stream ws`, or `webrtc` for H.264 when the host has an encoder), which is what the
-Carton console's Open uses.
+(`--stream ws`, or `webrtc` for H.264 when the host has an encoder; `--stream-port`, 3456 by
+default, one port per egg on a host), which is what the Carton console's Open uses.
 
 ## 3. Bake your software in (x86 lane)
 
