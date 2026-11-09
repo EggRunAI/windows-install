@@ -51,6 +51,13 @@ Options: `--iso <path>` (another ISO), `--ram 8G --cpus 4 --disk 64G` (x86 lane;
 lane takes them from `Eggfile`), `--media-only` (just the repacked ISO, to inspect),
 `--gpu-driver <zip>` (Mac lane: the VirtIO GPU 3D driver package, for 3D on the ARM egg).
 
+GPU and streaming (x86 lane): the egg is written with `--gpu virtio-gpu` (default, the 2D
+device every host has) or `--gpu nvidia --gpu-address 0000:c1:00.0` (whole-card passthrough;
+the card must be bound to vfio-pci on that host, `egg gpu ls` lists them, and the NVIDIA
+driver is installed from `provision.cmd`). Either way the egg streams its display
+(`--stream ws`, or `webrtc` for H.264 when the host has an encoder), which is what the
+Carton console's Open uses.
+
 ## 3. Bake your software in (x86 lane)
 
 Copy `x86/guest/provision.cmd.example` to `x86/guest/provision.cmd` and put your installs in
@@ -120,8 +127,14 @@ Windows egg cold-boots on first start (30-60 s to the desktop).
 - The x86 lane drives `egg run`, not `egg build`: the EggRun x86 runner has no Windows
   build lane yet, so the egg bundle is written by the script. A RUN-style step for Windows
   is `provision.cmd`.
-- No GPU acceleration in the x64 golden (virtio-gpu 2D). NVIDIA passthrough is a per-host
-  setting (`gpu = "nvidia"`, `gpu_address`) applied to a clone on a host that has a card bound
-  to vfio-pci, not something the golden carries.
+- A virtio-gpu golden has no GPU acceleration (2D scanout). An `--gpu nvidia` golden is tied to
+  a host that has that card bound to vfio-pci; to move it, change `gpu_address` in its egg.toml
+  on the new host.
 - Clones share the golden's Windows SID and activation state; `egg clone` gives each its own
   machine UUID. Activation for a fleet is your Microsoft agreement.
+
+## License
+
+The installer (the scripts, answer files and helpers in this repository) is licensed under
+the Apache License 2.0, see LICENSE. Windows, the VirtIO drivers from virtio-win, and any
+software your `provision.cmd` installs are licensed by their own vendors.

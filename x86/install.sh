@@ -2,7 +2,8 @@
 # x86/install.sh — Windows 11 x64 into a fresh egg, unattended, on a Linux x86_64 host (KVM).
 #
 #   x86/install.sh [name] [--iso <Win11 x64 iso>] [--virtio-win <virtio-win.iso>] [--ram 8G] [--cpus 4]
-#                  [--disk 64G] [--keep] [--media-only]
+#                  [--disk 64G] [--gpu virtio-gpu|nvidia] [--gpu-address 0000:c1:00.0] [--stream ws|webrtc]
+#                  [--keep] [--media-only]
 #
 # Steps, each a hard failure:
 #   1. media: the ISO tree + autounattend.xml + egg\ (SetupComplete.cmd, firstlogon.cmd, your
@@ -20,6 +21,10 @@
 #
 # Default ISO: iso/windows.iso (Windows 11 x64). virtio-win.iso is fetched from fedorapeople
 # into out/ when not given. Default name w11. --keep leaves the installed egg (your golden).
+# GPU: --gpu virtio-gpu (default, the 2D device every host has) or --gpu nvidia with the
+# card's PCI address (whole-card passthrough; the card must be bound to vfio-pci; the NVIDIA
+# driver goes in through provision.cmd). The egg streams its display (--stream ws default;
+# webrtc = H.264, needs an encoder on the host), so the Carton console can open it.
 # Needs: egg (the EggRun runner for Linux x86_64) on PATH or EGG=, xorriso, wimlib-imagex,
 # bsdtar, python3, curl, ~20 GB in out/, KVM. ~25-40 min. Exit 0 pass, 1 fail, 2 refused.
 # The egg is a SIGNED bundle only after step 5 in the README ("From golden to the hub").
@@ -32,10 +37,11 @@ PORT=${EGG_DROPBOX_PORT:-8766}
 ISO=$TOP/iso/windows.iso
 VWISO=${VIRTIO_WIN_ISO:-$TOP/out/virtio-win.iso}
 VWURL=https://fedorapeople.org/groups/virt/virtio-win/direct-downloads/stable-virtio/virtio-win.iso
-name=w11; keep=0; media_only=0; ram=8G; cpus=4; disk=64G
+name=w11; keep=0; media_only=0; ram=8G; cpus=4; disk=64G; gpu=virtio-gpu; gpu_address=; stream=ws
 while [ $# -gt 0 ]; do case "$1" in
   --iso) ISO=$2; shift 2;; --virtio-win) VWISO=$2; shift 2;; --ram) ram=$2; shift 2;; --cpus) cpus=$2; shift 2;;
-  --disk) disk=$2; shift 2;; --keep) keep=1; shift;; --media-only) media_only=1; shift;;
+  --disk) disk=$2; shift 2;; --gpu) gpu=$2; shift 2;; --gpu-address) gpu_address=$2; shift 2;; --stream) stream=$2; shift 2;;
+  --keep) keep=1; shift;; --media-only) media_only=1; shift;;
   -h|--help) sed -n 2,26p "$0"; exit 2;; -*) echo "install.sh: unknown option $1" >&2; exit 2;; *) name=$1; shift;; esac; done
 say() { printf '[w11-x86 %s] %s\n' "$(date +%H:%M:%S)" "$*"; }
 die() { say "REFUSED: $*"; exit 2; }
@@ -51,6 +57,9 @@ fail() { say "FAILED after $(el): $*"; [ -S "$S" ] && "$D" "$name" shot "$R/$nam
 for t in xorriso wimlib-imagex bsdtar python3 curl; do command -v $t >/dev/null || die "$t missing (apt install xorriso wimtools libarchive-tools python3 curl)"; done
 [ -c /dev/kvm ] || die "/dev/kvm missing: this host has no KVM (a .metal instance on AWS)"
 [ -f "$ISO" ] || die "install media not found: $ISO (copy your Windows 11 x64 ISO to iso/windows.iso, or --iso <path>)"
+case "$gpu" in virtio-gpu) ;; nvidia) [ -n "$gpu_address" ] || die "--gpu nvidia needs --gpu-address <pci address> (lspci -D | grep -i nvidia; egg gpu ls)";;
+  *) die "--gpu must be virtio-gpu or nvidia (x86 hosts attach nothing else)";; esac
+case "$stream" in ws|webrtc) ;; *) die "--stream must be ws or webrtc";; esac
 HOSTIP=$(hostname -I 2>/dev/null | awk '{print $1}'); [ -n "$HOSTIP" ] || die "no host address (the guest uploads its proofs here)"
 if [ $media_only = 0 ]; then
   ss -ltn 2>/dev/null | grep -q ":$PORT " && die "port $PORT is taken; stop it or set EGG_DROPBOX_PORT"
@@ -100,7 +109,7 @@ say "media ready ($(du -h "$MEDIA" | cut -f1), $(el))"
 mkdir -p "$BUNDLE/disks" "$BUNDLE/screenshots"
 cat > "$BUNDLE/egg.toml" <<TOML
 # Windows 11 x64 egg built by windows-install/x86/install.sh. UEFI, NVMe system disk,
-# virtio-gpu with ramfb (bootmgr needs a linear framebuffer), virtio network.
+# $gpu display with ramfb (bootmgr needs a linear framebuffer), virtio network, streamed.
 [boot]
 mode = "uefi"
 
@@ -127,8 +136,11 @@ stdio = false
 [display]
 width = 1280
 height = 800
-gpu = "virtio-gpu"
+gpu = "$gpu"
+$([ "$gpu" = nvidia ] && echo "gpu_address = \"$gpu_address\"")
 ramfb = true
+stream = "0.0.0.0:3456"
+stream_mode = "$stream"
 TOML
 rm -f "$TOP/guest/in/w11-proof1.txt" "$TOP/guest/in/w11-proof2.txt"
 ( cd "$TOP/guest" && EGG_DROPBOX_PORT=$PORT exec python3 "$TOP/tools/dropbox.py" ) >/dev/null 2>&1 &

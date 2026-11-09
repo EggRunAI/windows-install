@@ -9,3 +9,4 @@ RAM 8G
 DISK 48G
 GPU virgl vram=2G
 DISPLAY width=1920 height=1080 scale=2
+STREAM ws
