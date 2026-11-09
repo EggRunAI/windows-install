@@ -75,27 +75,36 @@ egg clone w11 f-01          # a copy, instant on a reflink filesystem (XFS/APFS)
 egg run f-01 -p 7011:3389   # expose a guest port on the host
 ```
 
-Windows eggs are stopped with a clean shutdown (`SHUTDOWN` over the egg's control socket,
-or Stop in the Carton console), never with a hard power-off: a killed Windows egg comes back
-in disk repair.
+Stop a Windows egg from inside Windows (Start → Power → Shut down, or `shutdown /s /t 0`),
+never with a hard stop from outside: on x86 `egg stop` and the socket's SHUTDOWN cut the
+machine, and a cut Windows comes back in Automatic Repair.
 
 ## 5. From golden to the hub
 
-The golden is an egg bundle; a hub wants that bundle **signed** and with its disk packed.
+A hub wants the bundle **signed** and its disk **packed**. The x86 lane does this itself when
+you pass `--keep`: a cold (disk-only) snapshot in `snapshots/<name>-build.egg`, a
+`metadata.toml` (title from `--title`, the card the hub shows), and `egg card` with a logo
+(`--logo <512x512.png>`, a flat placeholder otherwise) and the cold-boot screenshot, which
+signs the bundle with this machine's key. The Mac lane's `egg build` produces the build
+snapshot itself; `egg card w11 logo <png>` signs it.
+
+Then, on an Egg Carton of your own, import on the control box:
 
 ```bash
-egg card w11 logo <png>                     # signs the bundle (MANIFEST.json + MANIFEST.sig)
-egg push --egg w11 --snapshot <label> --tag 2026.11.09 --as <publisher>   # eggrun.ai, or a carton that speaks push
+egg-carton hub import /root/.egg/eggs/w11.egg --as <publisher>/<slug>:<tag> --arch linux-x86_64
+egg-carton hub ls
 ```
 
-On an Egg Carton of your own, import on the control box instead:
+or push to eggrun.ai:
 
 ```bash
-egg-carton hub import <bundle-dir> --as <publisher>/<slug>:<tag> --arch x86_64
+egg push --egg w11 --snapshot w11-build --tag 2026.11.09 --as <publisher>
 ```
 
-Hosts then `egg pull <publisher>/<slug>:<tag> --name golden` and clone from that. A pulled
-Windows egg cold-boots on first start (30-60 s to the desktop).
+Hosts then `egg pull <publisher>/<slug>:<tag> --name golden` and `egg clone golden w-01` per
+machine. A pulled Windows egg cold-boots on first start (30-60 s to the desktop); if the very
+first boot of a large egg says "No bootable device", the disk restore was still running: stop
+it and start it again.
 
 ## What is in here
 

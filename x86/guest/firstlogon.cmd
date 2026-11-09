@@ -19,8 +19,9 @@ if exist C:\egg\provision.cmd (
   call C:\egg\provision.cmd >> C:\egg-provision.txt 2>&1
   echo provision=%ERRORLEVEL%>> "%P%"
 )
-rem The cold-boot proof: a Startup entry that uploads proof2 on the next desktop and removes itself,
-rem so the golden carries nothing of this lane.
+rem The cold-boot proof: a Startup entry that uploads proof2 on the next desktop, removes itself,
+rem and shuts Windows down from inside (never cut a Windows egg from outside). The golden
+rem carries nothing of this lane.
 set SU=%APPDATA%\Microsoft\Windows\Start Menu\Programs\Startup
 (echo @echo off
  echo set P=%%TEMP%%\egg-proof2.txt
@@ -28,6 +29,7 @@ set SU=%APPDATA%\Microsoft\Windows\Start Menu\Programs\Startup
  echo reg query "HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon" /v AutoAdminLogon ^>^> "%%P%%"
  echo wmic path win32_videocontroller get name,currenthorizontalresolution,currentverticalresolution ^>^> "%%P%%"
  echo curl.exe -s -T "%%P%%" %DB%/w11-proof2.txt
- echo del "%%~f0") > "%SU%\egg-postboot.cmd"
+ echo del "%%~f0"
+ echo shutdown /s /t 20 /f) > "%SU%\egg-postboot.cmd"
 curl.exe -s -T "%P%" %DB%/w11-proof1.txt
 shutdown /s /t 10 /f

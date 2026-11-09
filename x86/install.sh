@@ -3,7 +3,7 @@
 #
 #   x86/install.sh [name] [--iso <Win11 x64 iso>] [--virtio-win <virtio-win.iso>] [--ram 8G] [--cpus 4]
 #                  [--disk 64G] [--gpu virtio-gpu|nvidia] [--gpu-address 0000:c1:00.0] [--stream ws|webrtc]
-#                  [--keep] [--media-only]
+#                  [--keep] [--logo <512x512.png>] [--title "Windows 11"] [--media-only]
 #
 # Steps, each a hard failure:
 #   1. media: the ISO tree + autounattend.xml + egg\ (SetupComplete.cmd, firstlogon.cmd, your
@@ -17,7 +17,11 @@
 #      tools; first logon persists autologon, runs provision.cmd if present, uploads proof1
 #      to the drop box, and shuts down → `egg run` exits
 #   4. the media is detached from the egg; a headless cold boot must reach the desktop
-#      (proof2 uploaded by the autologon user), then a clean SHUTDOWN
+#      (proof2 uploaded by the autologon user), and the guest shuts ITSELF down: a Windows
+#      egg is never cut from outside (a hard stop leaves NTFS dirty → Automatic Repair)
+#   5. with --keep: the golden is made a hub bundle — a cold (disk-only) snapshot named
+#      <name>-build.egg, metadata.toml, and `egg card` (logo + the cold-boot screenshot),
+#      which signs it; the import / push commands are printed
 #
 # Default ISO: iso/windows.iso (Windows 11 x64). virtio-win.iso is fetched from fedorapeople
 # into out/ when not given. Default name w11. --keep leaves the installed egg (your golden).
@@ -37,11 +41,11 @@ PORT=${EGG_DROPBOX_PORT:-8766}
 ISO=$TOP/iso/windows.iso
 VWISO=${VIRTIO_WIN_ISO:-$TOP/out/virtio-win.iso}
 VWURL=https://fedorapeople.org/groups/virt/virtio-win/direct-downloads/stable-virtio/virtio-win.iso
-name=w11; keep=0; media_only=0; ram=8G; cpus=4; disk=64G; gpu=virtio-gpu; gpu_address=; stream=ws
+name=w11; keep=0; media_only=0; ram=8G; cpus=4; disk=64G; gpu=virtio-gpu; gpu_address=; stream=ws; logo=; title="Windows 11"
 while [ $# -gt 0 ]; do case "$1" in
   --iso) ISO=$2; shift 2;; --virtio-win) VWISO=$2; shift 2;; --ram) ram=$2; shift 2;; --cpus) cpus=$2; shift 2;;
   --disk) disk=$2; shift 2;; --gpu) gpu=$2; shift 2;; --gpu-address) gpu_address=$2; shift 2;; --stream) stream=$2; shift 2;;
-  --keep) keep=1; shift;; --media-only) media_only=1; shift;;
+  --keep) keep=1; shift;; --media-only) media_only=1; shift;; --logo) logo=$2; shift 2;; --title) title=$2; shift 2;;
   -h|--help) sed -n 2,26p "$0"; exit 2;; -*) echo "install.sh: unknown option $1" >&2; exit 2;; *) name=$1; shift;; esac; done
 say() { printf '[w11-x86 %s] %s\n' "$(date +%H:%M:%S)" "$*"; }
 die() { say "REFUSED: $*"; exit 2; }
@@ -180,13 +184,65 @@ P2=$TOP/guest/in/w11-proof2.txt
 for _ in $(seq 120); do [ -s "$P2" ] && break; ralive || fail "cold boot died (see $RLOG)"; sleep 5; done
 [ -s "$P2" ] || fail "no proof2 within 10 min of the cold boot (autologon desktop not reached)"
 cp "$P2" "$R/$name-proof2.txt"
-"$D" "$name" settle 60 >/dev/null 2>&1; "$D" "$name" shot "$R/$name-02-coldboot.png" >/dev/null 2>&1
-say "cold boot desktop at $(el): results/$name-02-coldboot.png"
-"$D" "$name" raw SHUTDOWN >/dev/null
-for _ in $(seq 90); do ralive || break; sleep 2; done
-ralive && fail "no clean shutdown within 180 s (stop it by hand; never POWEROFF a Windows egg)"
+"$D" "$name" shot "$R/$name-02-coldboot.png" >/dev/null 2>&1
+say "cold boot desktop at $(el): results/$name-02-coldboot.png; the guest shuts itself down"
+# The Startup entry that uploaded proof2 removes itself and runs `shutdown /s`: the golden
+# carries no trace of this lane, and Windows closes its own filesystem.
+for _ in $(seq 120); do ralive || break; sleep 3; done
+ralive && fail "the guest did not shut down within 6 min of proof2 (look at results/$name-02-coldboot.png)"
 wait $rpid 2>/dev/null
 say "PASS in $(el): $name installed unattended and cold-boots to the desktop"
-[ $keep = 1 ] && { say "kept: egg run $name  (your golden; README 'From golden to the hub' for the push)"; exit 0; }
-"$EGG" rm "$name" 2>&1 | tail -1
+if [ $keep = 0 ]; then "$EGG" rm "$name" 2>&1 | tail -1; exit 0; fi
+
+# ── 5. the golden as a hub bundle ─────────────────────────────────────────────
+# A hub (eggrun.ai, or an Egg Carton's import) wants the bundle SIGNED and its disk packed:
+# a cold snapshot in snapshots/<name>-build.egg (the one directory the signature covers),
+# metadata.toml at the bundle root, and `egg card`, which re-signs with this machine's key.
+say "bundle: cold snapshot → metadata → card (signs)"
+"$EGG" snapshot --egg "$name" --snapshot "$name-build" --cold >"$R/$name-bundle.log" 2>&1 || fail "cold snapshot failed (see $R/$name-bundle.log)"
+[ -d "$BUNDLE/snapshots/$name-build.egg" ] || fail "no snapshots/$name-build.egg after the cold snapshot (see $R/$name-bundle.log)"
+cat > "$BUNDLE/metadata.toml" <<META
+# Written by windows-install/x86/install.sh: the card the hub shows for this egg.
+description = "$title, installed unattended by windows-install. Local administrator egg, autologon, VirtIO drivers, $gpu display."
+category = "Desktop"
+tags = ["windows", "x86_64", "desktop"]
+license = "Your Microsoft licence applies"
+network = "gateway"
+base = "windows:11"
+expose = []
+labels = []
+arch = "linux-x86_64"
+os = "Windows"
+class = "L"
+title = "$title"
+
+[login]
+user = "egg"
+autologin = true
+helptext = "Signed in as egg by itself. There is no password."
+META
+if [ -z "$logo" ]; then
+  logo=$OUT/logo-$name.png
+  python3 - "$logo" <<'PY' || fail "could not write a placeholder logo"
+import struct, zlib, sys
+w = h = 512
+row = bytes([0]) + bytes([0x1f, 0x6f, 0xeb] * w)      # one flat blue square; replace with --logo
+raw = row * h
+def chunk(t, d): return struct.pack('>I', len(d)) + t + d + struct.pack('>I', zlib.crc32(t + d) & 0xffffffff)
+png = b'PNG
+
+' + chunk(b'IHDR', struct.pack('>IIBBBBB', w, h, 8, 2, 0, 0, 0)) + chunk(b'IDAT', zlib.compress(raw, 9)) + chunk(b'IEND', b'')
+open(sys.argv[1], 'wb').write(png)
+PY
+fi
+"$EGG" card "$name" logo "$logo" >>"$R/$name-bundle.log" 2>&1 || fail "egg card logo failed (see $R/$name-bundle.log)"
+"$EGG" card "$name" add "$R/$name-02-coldboot.png" >>"$R/$name-bundle.log" 2>&1 || say "note: screenshot not added to the card (see $R/$name-bundle.log)"
+[ -s "$BUNDLE/MANIFEST.sig" ] || fail "bundle is not signed (no MANIFEST.sig)"
+say "bundle signed: $BUNDLE"
+cat <<NEXT
+  Run it:            egg run $name
+  Clone:             egg clone $name w-01
+  Egg Carton import: (on the control box) egg-carton hub import $BUNDLE --as <publisher>/<slug>:<tag> --arch linux-x86_64
+  eggrun.ai push:    egg push --egg $name --snapshot $name-build --tag <tag> --as <publisher>
+NEXT
 exit 0

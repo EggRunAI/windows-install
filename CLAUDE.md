@@ -26,12 +26,16 @@ document; this file is how to operate it and what not to do.
 2. For software, use `x86/guest/provision.cmd` (x86 lane); it runs once at first logon.
    Test the installer by hand in a running egg first to learn its silent switches, then
    write them in. Every `echo x=%ERRORLEVEL%>> file` must be parenthesised in cmd.
-3. Boot it once more by hand (`egg run <name>`), look, then shut it down cleanly:
-   `tools/drive.sh <name> raw SHUTDOWN` and wait for the runner to exit. Never QUIT or
-   POWEROFF a Windows egg: the disk comes back in repair / WinRE.
-4. Sign and ship as in README section 5. The hub side (egg push to eggrun.ai, or
-   `egg-carton hub import` on a carton) needs the bundle signed; `egg card <name> logo <png>`
-   signs it.
+3. Boot it once more by hand (`egg run <name>`), look, then shut it down FROM INSIDE Windows
+   (`tools/drive.sh <name> type "shutdown /s /t 0"` into an elevated prompt, or the Start
+   menu) and wait for the runner to exit. On x86 the socket's SHUTDOWN and `egg stop` are
+   hard cuts; a cut Windows comes back in Automatic Repair.
+4. The x86 lane with `--keep` already made the bundle: cold snapshot `snapshots/<name>-build.egg`
+   (`egg snapshot --egg <name> --snapshot <name>-build --cold`, egg stopped), metadata.toml,
+   `egg card <name> logo <png>` (+ `add <screenshot>`), which signs. The directory name
+   `<name>-build.egg` is what the signature covers; keep it. Then README section 5 for the
+   carton import or the push. A bundle pulled from another hub must be re-signed the same
+   way before an import.
 
 ## Rules
 
@@ -42,7 +46,7 @@ document; this file is how to operate it and what not to do.
 - Keep the two answer files separate: `autounattend.xml` is arm64 components,
   `x86/autounattend.xml` is amd64. A component of the wrong arch is silently ignored by
   Setup and its page comes back as a question in the egg window.
-- Windows eggs are stopped with SHUTDOWN. A build that "hangs" at a question is a wrong
+- A build that "hangs" at a question is a wrong
   or missing answer-file entry; look at the screenshot, fix the XML, rebuild.
 - The x86 lane writes the egg bundle itself because the x86 runner has no Windows build
   lane; when `egg build` learns `FROM windows:11` on x86, replace that block, keep the media
