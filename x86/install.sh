@@ -154,7 +154,7 @@ OFF=$((2048*512)); PSZ=$(( SZ_MB*1024*1024 - OFF - 34*512 ))
 mkfs.vfat -F 32 -n WIN11EGG --offset 2048 -S 512 "$MEDIA" $(( PSZ/1024 )) >/dev/null || die "mkfs.vfat failed"
 MT="-i $MEDIA@@$OFF"
 say "media: writing the FAT32 image (${SZ_MB} MB)"
-( cd "$STAGE" && mcopy $MT -s -Q -b -m . ::/ ) || die "mcopy into the media image failed"
+( cd "$STAGE" && mcopy $MT -s -Q -b -m -- * ::/ ) || die "mcopy into the media image failed"
 mdir $MT ::/sources | grep -qi 'install.swm' || die "install.swm missing from the media image"
 mdir $MT ::/efi/boot | grep -qi 'bootx64' || die "efi/boot/bootx64.efi missing from the media image"
 rm -rf "$STAGE" "$DRV" "$VW" "$M1" "$M2"
