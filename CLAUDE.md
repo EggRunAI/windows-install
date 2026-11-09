@@ -14,7 +14,7 @@ document; this file is how to operate it and what not to do.
   is not on PATH (a dev tree's `egg-osx/target/release/egg` must be signed, run `sign.sh`).
   The egg window opens; do not type in it. ~15 min.
 - Linux x86_64: `sudo x86/install.sh <name> --keep` as root (KVM, `/root/.egg`). `EGG=` for a
-  runner not on PATH. ~25-40 min. Needs xorriso, wimlib-imagex, bsdtar, python3, curl; the
+  runner not on PATH. ~30-45 min. Needs 7z (p7zip-full), wimlib-imagex, mtools, dosfstools, python3, curl; the
   virtio-win ISO is fetched into `out/` on first use.
 - Port 8766 is the drop box; one build at a time per host, or set `EGG_DROPBOX_PORT`.
 - A build is judged by `results/<name>-proof1.txt` and `-proof2.txt`, uploaded by the guest.

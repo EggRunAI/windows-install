@@ -10,7 +10,7 @@ Two lanes, one per host kind:
 | host | script | guest arch | media tooling |
 |---|---|---|---|
 | Mac, Apple Silicon | `./install.sh` | Windows 11 **ARM64** | hdiutil (built in) |
-| Linux x86_64 with KVM (a Carton Host, a `.metal` EC2, a workstation) | `x86/install.sh` | Windows 11 **x64** | xorriso, wimlib |
+| Linux x86_64 with KVM (a Carton Host, a `.metal` EC2, a workstation) | `x86/install.sh` | Windows 11 **x64** | 7z, wimlib, mtools, dosfstools |
 
 ## 1. Put the ISO in place
 
@@ -36,7 +36,7 @@ Mac:
 Linux x86_64, as root, with the EggRun host package installed (`egg` on PATH):
 
 ```bash
-sudo apt install xorriso wimtools python3 curl
+sudo apt install p7zip-full wimtools mtools dosfstools python3 curl
 sudo x86/install.sh w11 --keep
 ```
 
@@ -112,7 +112,7 @@ it and start it again.
 | path | role |
 |---|---|
 | `install.sh`, `Eggfile`, `autounattend.xml`, `guest/` | the Mac/ARM64 lane: `egg build` of `FROM windows:11` with repacked media |
-| `x86/install.sh`, `x86/autounattend.xml`, `x86/winpeshl.ini`, `x86/guest/` | the Linux x86_64 lane: VirtIO drivers into Setup's boot.wim, an egg bundle with an NVMe disk + virtio-gpu, `egg run` |
+| `x86/install.sh`, `x86/autounattend.xml`, `x86/winpeshl.ini`, `x86/deploy.cmd`, `x86/guest/` | the Linux x86_64 lane: FAT32 media image, WinPE deploy with DISM, an egg bundle with an NVMe disk + virtio-gpu, three `egg run` boots |
 | `tools/dropbox.py` | the host-side drop box the guest uploads its proofs to (HTTP PUT, port 8766) |
 | `tools/drive.sh` | control-socket helper: key, click, screenshot, settle, raw commands |
 | `iso/` | your `windows.iso` (ignored by git) |
@@ -125,12 +125,14 @@ it and start it again.
 - On the Mac the firmware's "Press any key to boot from CD" has to be answered once;
   install.sh taps Enter for the first 40 s of the first boot and never again. The x86 lane
   boots `efisys_noprompt.bin` and needs no key.
-- The Windows ISO is UDF with an install.wim beyond the 4 GB ISO9660 limit: the lane loop-mounts
-  it to copy, and splits the image into `.swm` parts before xorriso writes the new ISO.
-- Windows Setup on x86 cannot see a VirtIO disk, nor its own CD when that is a VirtIO
-  device, until viostor is loaded; the x86 lane puts the virtio-win drivers into
-  `boot.wim` and `winpeshl.ini` loads them before Setup. The system disk is NVMe (inbox
-  driver) and the display is virtio-gpu with ramfb, which the Windows boot manager needs.
+- The Windows ISO is UDF with an install.wim beyond 4 GB; the lane extracts it with 7z in user
+  space (no kernel udf module needed, so a CIS-hardened host is fine; a loop mount is the fallback)
+  and splits the image into `.swm` parts, which FAT32 can hold and Windows reads as one image.
+- Windows Setup on x86 will not take an ISO on a VirtIO disk as install media, and a second
+  NVMe controller hangs the x86 guest today, so the lane does not run Setup at all: the media
+  is a FAT32 "USB stick" image whose WinPE loads viostor and applies the Pro image with DISM,
+  plants the answer file (specialize and OOBE passes still run from it) and powers off. The
+  system disk is NVMe (inbox driver); the display is virtio-gpu with ramfb for the boot manager.
 - The guest proves itself by uploading files, not by screenshots: `elevated=yes`,
   autologon in the registry, and on the Mac lane TPM 2.0 present and Secure Boot on.
 

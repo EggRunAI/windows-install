@@ -1,11 +1,10 @@
 @echo off
-rem Runs once at the end of Windows Setup, as SYSTEM, before the first logon.
-rem VirtIO guest tools (network, input, display, balloon) so the first desktop has them;
-rem no sleep or screen blanking: a black frame must mean a dead guest, not a timer.
+rem Runs once at the end of Windows Setup, as SYSTEM, before the first logon. deploy.cmd copied
+rem the media's egg\ folder to C:\egg, so nothing here depends on the media still being attached.
+rem VirtIO guest tools (network, input, display, balloon); no sleep, no screen blanking, no Fast
+rem Startup (a hibernate-resume boots blind on a host that has none of the saved GPU state).
 echo %DATE% %TIME% setupcomplete start > C:\egg-setupcomplete.txt
-for %%d in (D E F G H I J) do if exist %%d:\egg\virtio-win-guest-tools.exe set M=%%d:
-if defined M %M%\egg\virtio-win-guest-tools.exe /passive /norestart >> C:\egg-setupcomplete.txt 2>&1
-if defined M (mkdir C:\egg >nul 2>&1 & xcopy /e /y /q %M%\egg C:\egg\ >nul)
+if exist C:\egg\virtio-win-guest-tools.exe C:\egg\virtio-win-guest-tools.exe /passive /norestart >> C:\egg-setupcomplete.txt 2>&1
 powercfg /change standby-timeout-ac 0 >nul
 powercfg /change monitor-timeout-ac 0 >nul
 reg add "HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\Power" /v HiberbootEnabled /t REG_DWORD /d 0 /f >nul

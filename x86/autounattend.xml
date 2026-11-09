@@ -118,10 +118,10 @@
         <Password><Value></Value><PlainText>true</PlainText></Password>
       </AutoLogon>
       <FirstLogonCommands>
-        <!-- The media keeps whatever drive letter Windows gave the USB CD; find it. -->
+        <!-- deploy.cmd copied the media's egg\ folder to C:\egg; the media is detached by now. -->
         <SynchronousCommand wcm:action="add" xmlns:wcm="http://schemas.microsoft.com/WMIConfig/2002/State">
           <Order>1</Order>
-          <CommandLine>cmd.exe /c for %d in (D E F G H I J) do if exist %d:\egg\firstlogon.cmd call %d:\egg\firstlogon.cmd</CommandLine>
+          <CommandLine>cmd.exe /c C:\egg\firstlogon.cmd</CommandLine>
           <Description>EggRun first logon: virtio-win guest tools, proof file, reboot</Description>
           <RequiresUserInput>false</RequiresUserInput>
         </SynchronousCommand>
