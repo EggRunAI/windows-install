@@ -29,7 +29,7 @@ set SU=%APPDATA%\Microsoft\Windows\Start Menu\Programs\Startup
  echo reg query "HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon" /v AutoAdminLogon ^>^> "%%P%%"
  echo wmic path win32_videocontroller get name,currenthorizontalresolution,currentverticalresolution ^>^> "%%P%%"
  echo curl.exe -s -T "%%P%%" %DB%/w11-proof2.txt
- echo del "%%~f0"
- echo shutdown /s /t 20 /f) > "%SU%\egg-postboot.cmd"
+ echo shutdown /s /t 20 /f
+ echo del "%%~f0") > "%SU%\egg-postboot.cmd"
 curl.exe -s -T "%P%" %DB%/w11-proof1.txt
 shutdown /s /t 10 /f
