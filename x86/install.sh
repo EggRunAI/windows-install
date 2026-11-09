@@ -313,9 +313,7 @@ w = h = 512
 row = bytes([0]) + bytes([0x1f, 0x6f, 0xeb] * w)      # one flat blue square; replace with --logo
 raw = row * h
 def chunk(t, d): return struct.pack('>I', len(d)) + t + d + struct.pack('>I', zlib.crc32(t + d) & 0xffffffff)
-png = b'PNG
-
-' + chunk(b'IHDR', struct.pack('>IIBBBBB', w, h, 8, 2, 0, 0, 0)) + chunk(b'IDAT', zlib.compress(raw, 9)) + chunk(b'IEND', b'')
+png = b'\x89PNG\r\n\x1a\n' + chunk(b'IHDR', struct.pack('>IIBBBBB', w, h, 8, 2, 0, 0, 0)) + chunk(b'IDAT', zlib.compress(raw, 9)) + chunk(b'IEND', b'')
 open(sys.argv[1], 'wb').write(png)
 PY
 fi
