@@ -226,11 +226,21 @@ open(p,'w').write(s.replace(blk.group(0), '\n'))
 PY
 LOG=$R/$name-install.log
 say "boot 2/3: Windows first boot (specialize → OOBE → autologon → first logon → shutdown; ~10-20 min)"
-run_egg "$LOG"
-wait_socket || fail "the runner exited before the first Windows boot came up (see $LOG)"
+# Windows reboots itself once or twice on the way (after specialize, after OOBE); `egg run` exits
+# on a guest reboot, so the lane starts it again, up to six times, until proof1 arrives.
 P1=$TOP/guest/in/w11-proof1.txt
-for _ in $(seq 600); do [ -s "$P1" ] && break; ralive || break; sleep 5; done
-[ -s "$P1" ] || { ralive && { "$D" "$name" shot "$R/$name-firstboot-stuck.png" >/dev/null 2>&1; fail "no proof1 within 50 min (a Setup/OOBE page is waiting: results/$name-firstboot-stuck.png)"; }; fail "the runner exited before first logon (see $LOG)"; }
+reboots=0
+while :; do
+  run_egg "$LOG.$reboots"
+  wait_socket || fail "the runner exited before the Windows boot came up (see $LOG.$reboots)"
+  for _ in $(seq 600); do [ -s "$P1" ] && break; ralive || break; sleep 5; done
+  [ -s "$P1" ] && break
+  if ralive; then "$D" "$name" shot "$R/$name-firstboot-stuck.png" >/dev/null 2>&1; fail "no proof1 within 50 min (a Setup/OOBE page is waiting: results/$name-firstboot-stuck.png)"; fi
+  wait $rpid 2>/dev/null
+  grep -q 'guest exit: Reboot' "$LOG.$reboots" || fail "the runner exited before first logon, not for a reboot (see $LOG.$reboots)"
+  reboots=$((reboots+1)); [ $reboots -le 6 ] || fail "Windows rebooted $reboots times without reaching first logon (a boot loop; see $LOG.*)"
+  say "guest rebooted ($reboots) at $(el); starting it again"
+done
 cp "$P1" "$R/$name-proof1.txt"; say "proof1 at $(el)"
 grep -q 'elevated=yes' "$R/$name-proof1.txt" || fail "firstlogon.cmd did not run elevated"
 tr -d '\r' < "$R/$name-proof1.txt" | grep -q 'AutoAdminLogon *REG_SZ *1' || fail "autologon not set"
