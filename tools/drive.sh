@@ -39,7 +39,7 @@ send() { printf '%s\n' "$1" | timeout 10 nc -U $NCQ "$S" 2>/dev/null; }
 case "${1:-}" in
   click) x=$(( $2 * 32767 / 800 )); y=$(( $3 * 32767 / 600 )); send "MOUSE_MOVE $x $y" >/dev/null; sleep 0.25; send "MOUSE_BTN left 1" >/dev/null; sleep 0.08; send "MOUSE_BTN left 0" >/dev/null;;
   key) send "KEY $2 1" >/dev/null; sleep 0.05; send "KEY $2 0" >/dev/null;;   # on the x86 runner a bare KEY 28 did not register; use `combo enter`
-  combo) send "KEY_COMBO $2 $3" >/dev/null;;
+  combo) shift; send "KEY_COMBO $*" >/dev/null;;   # one key or a chord: combo enter · combo meta r
   type) send "TYPE $2" >/dev/null;;
   # Win+R → type → Enter. Esc first closes whatever overlay is up; Shift and Win are
   # released before the chord because TYPE leaves Shift held after a string that ends
