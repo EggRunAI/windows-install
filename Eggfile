@@ -1,0 +1,11 @@
+# The Windows 11 egg the e2e install gate builds: 1080p at 2x (a 3840x2160
+# framebuffer shown at 1920x1080 points), the GPU on, the same machine class as
+# the Windows eggs on the desk. install.sh supplies the media (`egg build --iso`),
+# so there is no ISO line here.
+FROM windows:11
+TITLE "Windows 11 (e2e)"
+CPUS 4
+RAM 8G
+DISK 48G
+GPU virgl vram=2G
+DISPLAY width=1920 height=1080 scale=2

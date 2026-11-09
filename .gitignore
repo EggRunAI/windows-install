@@ -1,0 +1,7 @@
+# the user's install media and everything the lane produces
+iso/*
+!iso/.gitkeep
+out/
+results/
+guest/in/
+*.log

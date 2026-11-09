@@ -1,0 +1,8 @@
+@echo off
+rem Copy to provision.cmd to have install.sh bake software into the golden. Runs once, elevated,
+rem at the first logon with network up; everything it prints lands in C:\egg-provision.txt.
+rem Example, Autodesk Fusion. The streaming "Fusion Client Downloader" fails inside the egg
+rem (TLS alert from its bundled Python); the full Admin Install package works. Its silent
+rem switches are not verified here: run it once by hand to learn them, then fill them in.
+curl.exe -L -o "%TEMP%\FusionAdminInstall.exe" "https://dl.appstreaming.autodesk.com/production/installers/Fusion%%20Admin%%20Install.exe"
+"%TEMP%\FusionAdminInstall.exe" --quiet
