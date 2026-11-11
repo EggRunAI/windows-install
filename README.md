@@ -64,7 +64,7 @@ default, one port per egg on a host), which is what the Carton console's Open us
 Copy `x86/guest/provision.cmd.example` to `x86/guest/provision.cmd` and put your installs in
 it. It runs once, elevated, at the first logon with the network up, before the proof is
 uploaded and the machine shuts down; its output is in `C:\egg-provision.txt` inside the
-egg. The example is Autodesk Fusion through its Admin Install package (the streaming
+egg. The example is Fusion through its Admin Install package (the streaming
 installer fails inside an egg). Anything you add to `x86/guest/` next to it ends up in
 `C:\egg\` on the installed disk.
 
