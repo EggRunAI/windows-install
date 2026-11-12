@@ -35,6 +35,9 @@ T=${TMPDIR:-/tmp}
 # netcat-openbsd (Ubuntu's nc) keeps the connection open after the reply and hangs the caller;
 # -q 1 closes it a second after EOF on stdin. nmap's ncat (Fedora) closes by itself and has no -q.
 NCQ=""; nc -h 2>&1 | grep -q -- '-q' && NCQ="-q 1"
+# A 1920x1080 frame is a 6 MB PNG: the runner answers the SCREENSHOT line before
+# the file is complete, so wait for it (up to 8 s) instead of a fixed half second.
+waitfile() { local i=0; while [ $i -lt 16 ]; do [ -s "$1" ] && { sleep 0.3; return 0; }; sleep 0.5; i=$((i+1)); done; return 1; }
 send() { printf '%s\n' "$1" | timeout 10 nc -U $NCQ "$S" 2>/dev/null; }
 case "${1:-}" in
   click) x=$(( $2 * 32767 / 800 )); y=$(( $3 * 32767 / 600 )); send "MOUSE_MOVE $x $y" >/dev/null; sleep 0.25; send "MOUSE_BTN left 1" >/dev/null; sleep 0.08; send "MOUSE_BTN left 0" >/dev/null;;
@@ -55,11 +58,11 @@ case "${1:-}" in
   # loudly instead of handing back the last frame it ever produced.
   shot) out=${2:-$T/$name-shot.png}; p=${EGG_HOME:-$HOME/.egg}/eggs/$name.egg/screenshots/shot.png; rm -f "$p"
     if [ ! -S "$S" ]; then echo "drive.sh: $name is not running (no socket at $S)" >&2; exit 2; fi
-    send "SCREENSHOT $p" >/dev/null; sleep 0.5
+    send "SCREENSHOT $p" >/dev/null; waitfile "$p"
     if [ ! -s "$p" ]; then echo "drive.sh: $name produced no screenshot (runner dead or busy)" >&2; exit 3; fi
     cp "$p" "$out" && echo "$out";;
   settle) max=${2:-40}; t=0; prev=""; p=${EGG_HOME:-$HOME/.egg}/eggs/$name.egg/screenshots/shot.png
-    while [ $t -lt $max ]; do rm -f "$p"; send "SCREENSHOT $p" >/dev/null; sleep 0.5; cur=$(md5 -q "$p" 2>/dev/null)
+    while [ $t -lt $max ]; do rm -f "$p"; send "SCREENSHOT $p" >/dev/null; waitfile "$p"; cur=$(md5 -q "$p" 2>/dev/null)
       if [ -z "$cur" ]; then echo "drive.sh: $name produced no screenshot (not running?)" >&2; exit 3; fi
       if [ -n "$cur" ] && [ "$cur" = "$prev" ]; then cp "$p" "$T/$name-shot.png"; echo "settled at ${t}s"; exit 0; fi
       prev=$cur; sleep 3; t=$((t+3)); done
