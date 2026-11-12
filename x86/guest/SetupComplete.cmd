@@ -8,4 +8,9 @@ if exist C:\egg\virtio-win-guest-tools.exe C:\egg\virtio-win-guest-tools.exe /pa
 powercfg /change standby-timeout-ac 0 >nul
 powercfg /change monitor-timeout-ac 0 >nul
 reg add "HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\Power" /v HiberbootEnabled /t REG_DWORD /d 0 /f >nul
+rem The host's Stop presses the ACPI power button (egg 0.6.78+): make it an orderly shutdown,
+rem not Windows' default for a button it has never seen (a restart).
+powercfg /setacvalueindex scheme_current sub_buttons pbuttonaction 3 >nul
+powercfg /setdcvalueindex scheme_current sub_buttons pbuttonaction 3 >nul
+powercfg /setactive scheme_current >nul
 echo %DATE% %TIME% setupcomplete done >> C:\egg-setupcomplete.txt
