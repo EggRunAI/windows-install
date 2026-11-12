@@ -38,7 +38,12 @@ NCQ=""; nc -h 2>&1 | grep -q -- '-q' && NCQ="-q 1"
 # A 1920x1080 frame is a 6 MB PNG: the runner answers the SCREENSHOT line before
 # the file is complete, so wait for it (up to 8 s) instead of a fixed half second.
 waitfile() { local i=0; while [ $i -lt 16 ]; do [ -s "$1" ] && { sleep 0.3; return 0; }; sleep 0.5; i=$((i+1)); done; return 1; }
-send() { printf '%s\n' "$1" | timeout 10 nc -U $NCQ "$S" 2>/dev/null; }
+# `timeout` is GNU coreutils: present on Linux and on a Mac with brew coreutils (as
+# gtimeout), absent on a stock Mac — where every send() silently failed and the gate
+# reported "no screenshot" on an egg that was at its desktop. Without it, nc -w bounds
+# the connect and the runner closes the socket after its reply.
+if command -v timeout >/dev/null; then TMO="timeout 10"; elif command -v gtimeout >/dev/null; then TMO="gtimeout 10"; else TMO=""; NCW="-w 10"; fi
+send() { printf '%s\n' "$1" | $TMO nc -U $NCQ ${NCW:-} "$S" 2>/dev/null; }
 case "${1:-}" in
   click) x=$(( $2 * 32767 / 800 )); y=$(( $3 * 32767 / 600 )); send "MOUSE_MOVE $x $y" >/dev/null; sleep 0.25; send "MOUSE_BTN left 1" >/dev/null; sleep 0.08; send "MOUSE_BTN left 0" >/dev/null;;
   key) send "KEY $2 1" >/dev/null; sleep 0.05; send "KEY $2 0" >/dev/null;;   # on the x86 runner a bare KEY 28 did not register; use `combo enter`
